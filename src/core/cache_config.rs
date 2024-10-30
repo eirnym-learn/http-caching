@@ -40,7 +40,8 @@ pub enum CacheKeep {
 /// or use additional headers or even another hash function than default one.
 ///
 /// A closure takes something implementing [`crate::http::HttpRequest`] and returns a [`CacheKey`].
-pub type CacheKeyFn<AdditionalParams> = Arc<dyn Fn(&HTTPRequest, &AdditionalParams) -> CacheKey + Send + Sync>;
+pub type CacheKeyFn<AdditionalParams> =
+    Arc<dyn Fn(&HTTPRequest, &AdditionalParams) -> CacheKey + Send + Sync>;
 
 /// Return what should be done with given cache entry.
 ///
@@ -56,8 +57,11 @@ pub type CacheKeyFn<AdditionalParams> = Arc<dyn Fn(&HTTPRequest, &AdditionalPara
 ///
 /// A closure that takes [`crate::http::HTTPRequest`], [`crate::http::HTTPResponse`] and expiration timestamp from cache
 /// and returns a [`CacheBust`].
-pub type CacheKeepFn<AdditionalParams> =
-    Arc<dyn Fn(&HTTPRequest, &HTTPResponse, &Option<CacheTimestamp>, &AdditionalParams) -> CacheKeep + Send + Sync>;
+pub type CacheKeepFn<AdditionalParams> = Arc<
+    dyn Fn(&HTTPRequest, &HTTPResponse, &Option<CacheTimestamp>, &AdditionalParams) -> CacheKeep
+        + Send
+        + Sync,
+>;
 
 /// Return cache policy how given real response data needs to be cached.
 ///
@@ -66,8 +70,9 @@ pub type CacheKeepFn<AdditionalParams> =
 /// NOTE: Function is called on every request, only on cache miss.
 ///
 /// A closure that takes [`crate::http::HTTPRequest`] and [`crate::http::HttpResponse`] headers and returns a [`CachePolicy`].
-pub type CacheResponsePolicyFn<AdditionalParams> =
-    Arc<dyn Fn(&HTTPRequest, &HTTPResponse, &AdditionalParams) -> CacheResponsePolicy + Send + Sync>;
+pub type CacheResponsePolicyFn<AdditionalParams> = Arc<
+    dyn Fn(&HTTPRequest, &HTTPResponse, &AdditionalParams) -> CacheResponsePolicy + Send + Sync,
+>;
 
 /// Additional cache configuration
 pub struct CacheConfig<AdditionalParams> {
