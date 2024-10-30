@@ -17,14 +17,10 @@ pub enum CacheHitResult {
     CacheEvict,
 }
 
-
 /// Abstraction to do remote call for given request
 pub trait RequestCaller: Send + Sync + 'static {
     /// Call remote server to get actual HTTP response
-    async fn read_remote_headers(
-        &self,
-        request: &HTTPRequest,
-    ) -> Result<HTTPResponse>;
+    async fn read_remote_headers(&self, request: &HTTPRequest) -> Result<HTTPResponse>;
 }
 
 pub trait Middleware: Send + Sync + 'static {
@@ -55,9 +51,8 @@ pub trait Middleware: Send + Sync + 'static {
 
         let additional_params = self.additional_params();
 
-        let cache_config::CacheKey::Key(cache_key) = key_fn(request, additional_params) else
-        {
-            return Ok((None, CacheHitResult::CacheOff))
+        let cache_config::CacheKey::Key(cache_key) = key_fn(request, additional_params) else {
+            return Ok((None, CacheHitResult::CacheOff));
         };
 
         let cache_manager = self.cache_manager();
@@ -65,16 +60,22 @@ pub trait Middleware: Send + Sync + 'static {
         // TODO: proper error handling on await
         let cache_data_opt = cache_manager.get(&cache_key).await?;
         let cache_keep = process_cache_hit::<Self::AdditionalParams>(
-            request, &cache_data_opt, &additional_params, &cache_config.cache_keep_fn
+            request,
+            &cache_data_opt,
+            &additional_params,
+            &cache_config.cache_keep_fn,
         );
 
         match cache_keep {
             Some(CacheKeep::Keep) => {
-                return Ok((Some(cache_data_opt.unwrap().http_response), CacheHitResult::CacheHit))
+                return Ok((
+                    Some(cache_data_opt.unwrap().http_response),
+                    CacheHitResult::CacheHit,
+                ))
             }
             Some(CacheKeep::Evict) => {
                 cache_manager.delete(&cache_key);
-                return Ok((None, CacheHitResult::CacheEvict))
+                return Ok((None, CacheHitResult::CacheEvict));
             }
             // no cached data or update
             _ => {}
@@ -85,16 +86,15 @@ pub trait Middleware: Send + Sync + 'static {
         let remote_response = remote_caller.read_remote_headers(request).await?;
         let cache_policy = match &cache_config.cache_policy_fn {
             None => CacheResponsePolicy::NoCache,
-            Some(cache_policy_fn) =>
-                cache_policy_fn(request, &remote_response, additional_params)
+            Some(cache_policy_fn) => cache_policy_fn(request, &remote_response, additional_params),
         };
 
         let expiration_time = match cache_policy {
             CacheResponsePolicy::NoCache => {
                 return Ok((Some(remote_response), CacheHitResult::CacheOff))
-            },
+            }
             CacheResponsePolicy::CacheWithoutExpirationDate => None,
-            CacheResponsePolicy::CacheWithExpirationDate(expiration_date) => Some(expiration_date)
+            CacheResponsePolicy::CacheWithExpirationDate(expiration_date) => Some(expiration_date),
         };
         let new_cache_data = CacheData {
             call_timestamp: chrono::offset::Utc::now(),
@@ -119,11 +119,17 @@ fn process_cache_hit<AdditionalParams>(
     additional_params: &AdditionalParams,
     cache_keep_fn: &Option<CacheKeepFn<AdditionalParams>>,
 ) -> Option<CacheKeep> {
-    let Some(cache_data) = cache_data_opt else {return None};
+    let Some(cache_data) = cache_data_opt else {
+        return None;
+    };
 
     Some(match cache_keep_fn {
         None => CacheKeep::Keep,
-        Some(cache_keep_fn) =>
-            cache_keep_fn(request, &cache_data.http_response, &cache_data.expiration_time, &additional_params)
+        Some(cache_keep_fn) => cache_keep_fn(
+            request,
+            &cache_data.http_response,
+            &cache_data.expiration_time,
+            &additional_params,
+        ),
     })
 }

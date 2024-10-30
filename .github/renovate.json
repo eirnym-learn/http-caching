@@ -1,0 +1,10 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "commitMessageExtra": "from `{{#if isPinDigest}}{{{currentDigestShort}}}{{else}}{{#if currentValue}}{{{currentValue}}}{{else}}{{{currentDigestShort}}}{{/if}}{{#if isSingleVersion}} (v{{{currentVersion}}}){{/if}}{{/if}}` to `{{#if isPinDigest}}{{{newDigestShort}}}{{else}}{{#if newValue}}{{{newValue}}}{{else}}{{{newDigestShort}}}{{/if}}{{#if isSingleVersion}} ({{{prettyNewVersion}}}){{/if}}{{/if}}{{#if isMajor}} (major {{{prettyNewMajor}}}){{/if}}`",
+  "extends": [
+    "config:base"
+  ],
+  "separateMajorMinor": true,
+  "separateMinorPatch": true,
+  "separateMultipleMajor": true
+}
