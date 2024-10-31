@@ -5,7 +5,7 @@ use url::Url;
 use crate::core::Result;
 /// Http Request status
 /// async?
-pub trait HttpRequest: Send + Sync {
+pub trait HttpRequest: Send {
     /// HTTP request method
     fn method(&self) -> HttpMethod;
     /// HTTP request URL
@@ -18,7 +18,7 @@ pub trait HttpRequest: Send + Sync {
 
 /// Http Response without body
 /// async?
-pub trait HttpResponse: Send {
+pub trait HttpResponse: Send + Sync{
     /// HTTP response version
     fn version(&self) -> HttpVersion;
     /// HTTP response url
@@ -30,7 +30,7 @@ pub trait HttpResponse: Send {
     /// HTTP response headers
     fn headers(&self) -> HashMap<String, Vec<String>>;
     /// HTTP response body
-    fn body(&self) -> impl Future<Output = Result<Vec<u8>>> + Send;
+    fn body(&self) -> impl Future<Output = Result<Vec<u8>>> + Send + Sync;
 
     /// Easy way to obtain HTTP response status category
     fn status_category(&self) -> HttpResponseStatus {
