@@ -22,7 +22,6 @@ pub struct CacheData {
 }
 
 /// A trait providing methods for storing, reading, and removing cache records.
-// #[async_trait::async_trait]
 pub trait CacheManager: Send + Sync {
     /// Attempt to pull a cached response.
     fn get(
