@@ -49,7 +49,8 @@ pub trait Middleware: Send + Sync {
         &self,
         request: &HTTPRequest,
         remote_caller: &impl RequestCaller,
-    ) -> impl std::future::Future<Output = Result<(Option<HTTPResponse>, CacheHitResult)>> + Send {
+    ) -> impl std::future::Future<Output = Result<(Option<HTTPResponse>, CacheHitResult)>> + Send
+    {
         async {
             let cache_config = self.cache_config();
             let Some(key_fn) = &cache_config.key_fn else {

@@ -16,7 +16,7 @@ pub trait HttpRequest: Send {
 }
 
 /// Http Response without body
-pub trait HttpResponse: Send + Sync{
+pub trait HttpResponse: Send + Sync {
     /// HTTP response version
     fn version(&self) -> HttpVersion;
     /// HTTP response url
@@ -223,7 +223,7 @@ impl HttpResponse for HTTPResponse {
     }
 
     #[doc = "HTTP response body"]
-    fn body(&self) -> impl Future<Output = Result<Vec<u8>>> + Send{
+    fn body(&self) -> impl Future<Output = Result<Vec<u8>>> + Send {
         async { Ok(self.body.clone()) }
     }
 }
