@@ -2,7 +2,6 @@ use super::{
     error::Result,
     http::{HTTPRequest, HTTPResponse},
 };
-use std::borrow::Cow;
 
 pub type CacheTimestamp = chrono::DateTime<chrono::Utc>;
 
@@ -24,13 +23,23 @@ pub struct CacheData {
 
 /// A trait providing methods for storing, reading, and removing cache records.
 // #[async_trait::async_trait]
-pub trait CacheManager: Send + Sync + 'static {
+pub trait CacheManager: Send + Sync {
     /// Attempt to pull a cached response.
-    async fn get(&self, cache_key: &String) -> Result<Option<CacheData>>;
+    fn get(
+        &self,
+        cache_key: &String,
+    ) -> impl std::future::Future<Output = Result<Option<CacheData>>> + Send + Sync;
 
     /// Attempt to put data in cache.
-    async fn put(&self, cache_key: &String, data: &CacheData) -> Result<()>;
+    fn put(
+        &self,
+        cache_key: &String,
+        data: &CacheData,
+    ) -> impl std::future::Future<Output = Result<()>> + Send + Sync;
 
     /// Attempt to remove a record from cache.
-    async fn delete(&self, cache_key: &String) -> Result<Option<CacheData>>;
+    fn delete(
+        &self,
+        cache_key: &String,
+    ) -> impl std::future::Future<Output = Result<Option<CacheData>>> + Send + Sync;
 }

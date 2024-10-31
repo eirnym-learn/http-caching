@@ -1,3 +1,4 @@
+#[derive(Debug)]
 // TODO: add custom errors
 pub enum Error {
     FIXME,

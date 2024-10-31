@@ -1,7 +1,7 @@
 use super::cache::{CacheData, CacheManager};
 use super::cache_config::{self, CacheConfig, CacheKeep, CacheKeepFn, CacheResponsePolicy};
 use super::error::Result;
-use super::http::{HTTPRequest, HTTPResponse};
+use super::http::{HTTPRequest, HTTPResponse, HttpRequest, HttpResponse};
 
 #[derive(Clone)]
 pub enum CacheHitResult {
@@ -18,14 +18,20 @@ pub enum CacheHitResult {
 }
 
 /// Abstraction to do remote call for given request
-pub trait RequestCaller: Send + Sync + 'static {
+pub trait RequestCaller: Send + Sync {
+    type Request: HttpRequest;
+    type Response: HttpResponse;
+    // TODO: fill extensions as needed
     /// Call remote server to get actual HTTP response
-    async fn read_remote_headers(&self, request: &HTTPRequest) -> Result<HTTPResponse>;
+    fn read_remote_headers(
+        &self,
+        request: &impl HttpRequest,
+    ) -> impl std::future::Future<Output = Result<impl HttpResponse>> + Send + Sync;
 }
 
-pub trait Middleware: Send + Sync + 'static {
-    type AdditionalParams;
-    type MiddlewareCacheManager: CacheManager;
+pub trait Middleware: Send + Sync {
+    type AdditionalParams: Send + Sync;
+    type MiddlewareCacheManager: CacheManager + Send + Sync;
 
     /// Return an instance of cache manager
     fn cache_manager(&self) -> &Self::MiddlewareCacheManager;
@@ -74,7 +80,8 @@ pub trait Middleware: Send + Sync + 'static {
                 ))
             }
             Some(CacheKeep::Evict) => {
-                cache_manager.delete(&cache_key);
+                // TODO: proper error handling on await
+                cache_manager.delete(&cache_key).await?;
                 return Ok((None, CacheHitResult::CacheEvict));
             }
             // no cached data or update
@@ -84,32 +91,42 @@ pub trait Middleware: Send + Sync + 'static {
         // Cache miss
         // TODO: proper error handling on await
         let remote_response = remote_caller.read_remote_headers(request).await?;
+        let remote_response_no_body = HTTPResponse::new_no_body(&remote_response);
         let cache_policy = match &cache_config.cache_policy_fn {
             None => CacheResponsePolicy::NoCache,
-            Some(cache_policy_fn) => cache_policy_fn(request, &remote_response, additional_params),
+            Some(cache_policy_fn) => {
+                cache_policy_fn(request, &remote_response_no_body, additional_params)
+            }
         };
 
         let expiration_time = match cache_policy {
             CacheResponsePolicy::NoCache => {
-                return Ok((Some(remote_response), CacheHitResult::CacheOff))
+                return Ok((Some(remote_response_no_body), CacheHitResult::CacheOff))
             }
             CacheResponsePolicy::CacheWithoutExpirationDate => None,
             CacheResponsePolicy::CacheWithExpirationDate(expiration_date) => Some(expiration_date),
         };
+
+        // TODO: proper error handling on await
+        let remote_response_with_body = HTTPResponse::new(&remote_response).await?;
+
         let new_cache_data = CacheData {
             call_timestamp: chrono::offset::Utc::now(),
             expiration_time,
             http_request: request.clone(),
-            http_response: remote_response.clone(),
+            http_response: remote_response_with_body.clone(),
         };
-        cache_manager.put(&cache_key, &new_cache_data);
+
+        // TODO: proper error handling on await
+        cache_manager.put(&cache_key, &new_cache_data).await?;
 
         let cache_hit_result = if matches!(cache_keep, Some(CacheKeep::Update)) {
             CacheHitResult::CacheUpdate
         } else {
             CacheHitResult::CacheMiss
         };
-        return Ok((Some(remote_response), cache_hit_result));
+
+        return Ok((Some(remote_response_with_body), cache_hit_result));
     }
 }
 
