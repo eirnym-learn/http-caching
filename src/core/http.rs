@@ -1,40 +1,38 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, future::Future};
 use url::Url;
 
+use crate::core::Result;
 /// Http Request status
-/// async?
-pub trait HttpRequest {
+pub trait HttpRequest: Send {
     /// HTTP request method
-    async fn method(&self) -> HttpMethod;
+    fn method(&self) -> HttpMethod;
     /// HTTP request URL
-    async fn url(&self) -> Url;
+    fn url(&self) -> Url;
     /// HTTP request headers
-    async fn headers(&self) -> HashMap<String, Vec<String>>;
+    fn headers(&self) -> HashMap<String, Vec<String>>;
     /// HTTP request body
-    async fn body(&self) -> Vec<u8>;
+    fn body(&self) -> Vec<u8>;
 }
 
 /// Http Response without body
-/// async?
-pub trait HttpResponse {
+pub trait HttpResponse: Send + Sync {
     /// HTTP response version
-    async fn version(&self) -> HttpVersion;
+    fn version(&self) -> HttpVersion;
     /// HTTP response url
-    async fn url(&self) -> Url;
+    fn url(&self) -> Url;
     /// HTTP response status code
-    async fn status(&self) -> u16;
+    fn status(&self) -> u16;
     /// HTTP response status reason
-    async fn reason(&self) -> String;
+    fn reason(&self) -> String;
     /// HTTP response headers
-    async fn headers(&self) -> HashMap<String, Vec<String>>;
-    /// HTTP response body
-    /// TODO: Result?
-    async fn body(&self) -> Vec<u8>;
+    fn headers(&self) -> HashMap<String, Vec<String>>;
+    /// HTTP response body — called only when required
+    fn body(&self) -> impl Future<Output = Result<Vec<u8>>> + Send + Sync;
 
     /// Easy way to obtain HTTP response status category
-    async fn status_category(&self) -> HttpResponseStatus {
-        common_status_category(self.status().await)
+    fn status_category(&self) -> HttpResponseStatus {
+        common_status_category(self.status())
     }
 }
 
@@ -65,7 +63,6 @@ pub struct HTTPResponse {
     /// HTTP response headers
     pub headers: HashMap<String, Vec<String>>,
     /// HTTP response body
-    // TODO: separate it out to an async trait/function/accessor
     pub body: Vec<u8>,
 }
 
@@ -138,86 +135,96 @@ pub enum HttpVersion {
 
 impl HTTPRequest {
     /// Easy constructor to create from arbitraty implementation
-    pub async fn new(value: &impl HttpRequest) -> Self {
+    pub fn new(value: &impl HttpRequest) -> Self {
         HTTPRequest {
-            method: value.method().await.clone(),
-            url: value.url().await.clone(),
-            headers: value.headers().await.clone(),
-            body: value.body().await.clone(),
+            method: value.method().clone(),
+            url: value.url().clone(),
+            headers: value.headers().clone(),
+            body: value.body().clone(),
         }
     }
 }
 
 impl HttpRequest for HTTPRequest {
     #[doc = "HTTP request method"]
-    async fn method(&self) -> HttpMethod {
+    fn method(&self) -> HttpMethod {
         self.method.clone()
     }
 
     #[doc = "HTTP request URL"]
-    async fn url(&self) -> Url {
+    fn url(&self) -> Url {
         self.url.clone()
     }
 
     #[doc = "HTTP request headers"]
-    async fn headers(&self) -> HashMap<String, Vec<String>> {
+    fn headers(&self) -> HashMap<String, Vec<String>> {
         self.headers.clone()
     }
 
     #[doc = "HTTP request body"]
-    async fn body(&self) -> Vec<u8> {
+    fn body(&self) -> Vec<u8> {
         self.body.clone()
     }
 }
 
 impl HTTPResponse {
     /// Easy constructor to create from arbitraty implementation
-    pub async fn new(value: &impl HttpResponse) -> Self {
+    pub async fn new(value: &impl HttpResponse) -> Result<Self> {
+        Ok(HTTPResponse {
+            version: value.version().clone(),
+            status: value.status(),
+            reason: value.reason().clone(),
+            url: value.url().clone(),
+            headers: value.headers().clone(),
+            body: value.body().await?.clone(),
+        })
+    }
+    pub fn new_no_body(value: &impl HttpResponse) -> Self {
         HTTPResponse {
-            version: value.version().await.clone(),
-            status: value.status().await,
-            reason: value.reason().await.clone(),
-            url: value.url().await.clone(),
-            headers: value.headers().await.clone(),
-            body: value.body().await.clone(),
+            version: value.version().clone(),
+            status: value.status(),
+            reason: value.reason().clone(),
+            url: value.url().clone(),
+            headers: value.headers().clone(),
+            body: vec![],
         }
     }
 
     /// Easy way to obtain HTTP response status category
-    async fn status_category(&self) -> HttpResponseStatus {
-        common_status_category(self.status().await)
+    pub fn status_category(&self) -> HttpResponseStatus {
+        common_status_category(self.status())
     }
 }
 
 impl HttpResponse for HTTPResponse {
     #[doc = "HTTP response version"]
-    async fn version(&self) -> HttpVersion {
+    fn version(&self) -> HttpVersion {
         self.version.clone()
     }
 
     #[doc = "HTTP response url"]
-    async fn url(&self) -> Url {
+    fn url(&self) -> Url {
         self.url.clone()
     }
 
     #[doc = "HTTP response status code"]
-    async fn status(&self) -> u16 {
+    fn status(&self) -> u16 {
         self.status
     }
 
     #[doc = "HTTP response status reason"]
-    async fn reason(&self) -> String {
+    fn reason(&self) -> String {
         self.reason.clone()
     }
 
     #[doc = "HTTP response headers"]
-    async fn headers(&self) -> HashMap<String, Vec<String>> {
+    fn headers(&self) -> HashMap<String, Vec<String>> {
         self.headers.clone()
     }
 
     #[doc = "HTTP response body"]
-    async fn body(&self) -> Vec<u8> {
-        self.body.clone()
+    fn body(&self) -> impl Future<Output = Result<Vec<u8>>> + Send {
+        async { Ok(self.body.clone()) }
     }
 }
 
