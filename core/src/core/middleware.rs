@@ -1,7 +1,5 @@
-use super::cache::{self, CacheData, CacheManager};
-use super::cache_config::{
-    self, CacheConfig, CacheKeepFn, CacheKeepPolicy, CacheResponseExpiration,
-};
+use super::cache::{CacheData, CacheManager};
+use super::cache_config::{self, CacheConfig, CacheKeepPolicy, CacheResponseExpiration};
 use super::error::Result;
 use super::http::{HTTPRequest, HTTPResponse, HttpRequest, HttpResponse};
 
@@ -70,16 +68,14 @@ pub trait Middleware: Send + Sync {
             // TODO: proper error handling on await
             let cache_data_opt = cache_manager.get(&cache_key).await?;
 
-            let cache_keep = if let Some(cache_data) = &cache_data_opt {
-                Some((cache_config.cache_keep_fn)(
+            let cache_keep = cache_data_opt.as_ref().map(|cache_data| {
+                (cache_config.cache_keep_fn)(
                     request,
                     &cache_data.http_response,
                     &cache_data.expiration_time,
-                    &additional_params,
-                ))
-            } else {
-                None
-            };
+                    additional_params,
+                )
+            });
 
             match cache_keep {
                 Some(CacheKeepPolicy::Skip) => {
@@ -141,7 +137,7 @@ pub trait Middleware: Send + Sync {
                 CacheHitResult::CacheMiss
             };
 
-            return Ok((Some(remote_response_with_body), cache_hit_result));
+            Ok((Some(remote_response_with_body), cache_hit_result))
         }
     }
 }

@@ -173,7 +173,7 @@ impl HTTPResponse {
     /// Easy constructor to create from arbitraty implementation
     pub async fn new(value: &impl HttpResponse) -> Result<Self> {
         Ok(HTTPResponse {
-            version: value.version().clone(),
+            version: value.version(),
             status: value.status(),
             reason: value.reason().clone(),
             url: value.url().clone(),
@@ -183,7 +183,7 @@ impl HTTPResponse {
     }
     pub fn new_no_body(value: &impl HttpResponse) -> Self {
         HTTPResponse {
-            version: value.version().clone(),
+            version: value.version(),
             status: value.status(),
             reason: value.reason().clone(),
             url: value.url().clone(),
@@ -200,7 +200,7 @@ impl HTTPResponse {
 
 impl HttpResponse for HTTPResponse {
     fn version(&self) -> HttpVersion {
-        self.version.clone()
+        self.version
     }
 
     fn url(&self) -> Url {
@@ -219,18 +219,18 @@ impl HttpResponse for HTTPResponse {
         self.headers.clone()
     }
 
-    fn body(&self) -> impl Future<Output = Result<Vec<u8>>> + Send + Sync {
-        async { Ok(self.body.clone()) }
+    async fn body(&self) -> Result<Vec<u8>> {
+        Ok(self.body.clone())
     }
 }
 
 fn common_status_category(status: u16) -> HttpResponseStatus {
-    return match status {
+    match status {
         100..200 => HttpResponseStatus::Status1xx,
         200..300 => HttpResponseStatus::Status2xx,
         300..400 => HttpResponseStatus::Status3xx,
         400..500 => HttpResponseStatus::Status4xx,
         500..600 => HttpResponseStatus::Status5xx,
         _ => HttpResponseStatus::StatusUnknown,
-    };
+    }
 }
