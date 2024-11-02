@@ -1,13 +1,11 @@
 use super::cache::{CacheData, CacheManager};
-use super::cache_config::{
-    self, CacheConfig, CacheKeepFn, CacheKeepPolicy, CacheResponseExpiration,
-};
+use super::cache_config::{self, CacheConfig, CacheKeepPolicy, CacheResponseExpiration};
 use super::error::Result;
 use super::http::{HTTPRequest, HTTPResponse, HttpRequest, HttpResponse};
 
 #[derive(Clone)]
 pub enum CacheHitResult {
-    /// Cache miss, it hasn't been checked for this request
+    /// Cache miss, cache hasn't been checked for this request (keep policy skip was returned)
     CacheOff,
     /// Cache miss, new data from remote has been stored
     CacheMiss,
@@ -20,10 +18,10 @@ pub enum CacheHitResult {
 }
 
 /// Abstraction to do remote call for given request
+// TODO: fill extensions as needed
 pub trait RequestCaller: Send + Sync {
     type Request: HttpRequest;
     type Response: HttpResponse;
-    // TODO: fill extensions as needed
     /// Call remote server to get actual HTTP response
     fn read_remote_headers(
         &self,
@@ -31,6 +29,7 @@ pub trait RequestCaller: Send + Sync {
     ) -> impl std::future::Future<Output = Result<impl HttpResponse>> + Send + Sync;
 }
 
+// REVIEW: could it be just a function?
 pub trait Middleware: Send + Sync {
     type CacheTimeType: Send + Sync;
     type AdditionalParams: Send + Sync;
@@ -47,7 +46,7 @@ pub trait Middleware: Send + Sync {
 
     /// Handle request and return HTTP response with cache hit result
     ///
-    /// if response is None, then request hasn't been made
+    /// if response is None, then request hasn't been made, and caller should do it manually
     fn handle_request(
         &self,
         request: &HTTPRequest,
@@ -56,13 +55,10 @@ pub trait Middleware: Send + Sync {
     {
         async {
             let cache_config = self.cache_config();
-            let Some(key_fn) = &cache_config.key_fn else {
-                return Ok((None, CacheHitResult::CacheOff));
-            };
-
             let additional_params = self.additional_params();
 
-            let cache_config::CacheRequestKey::Key(cache_key) = key_fn(request, additional_params)
+            let cache_config::CacheRequestKey::Key(cache_key) =
+                (cache_config.key_fn)(request, additional_params)
             else {
                 return Ok((None, CacheHitResult::CacheOff));
             };
@@ -71,14 +67,20 @@ pub trait Middleware: Send + Sync {
 
             // TODO: proper error handling on await
             let cache_data_opt = cache_manager.get(&cache_key).await?;
-            let cache_keep = process_cache_hit::<Self::AdditionalParams, Self::CacheTimeType>(
-                request,
-                &cache_data_opt,
-                &additional_params,
-                &cache_config.cache_keep_fn,
-            );
+
+            let cache_keep = cache_data_opt.as_ref().map(|cache_data| {
+                (cache_config.cache_keep_fn)(
+                    request,
+                    &cache_data.http_response,
+                    &cache_data.expiration_time,
+                    additional_params,
+                )
+            });
 
             match cache_keep {
+                Some(CacheKeepPolicy::Skip) => {
+                    return Ok((None, CacheHitResult::CacheOff));
+                }
                 Some(CacheKeepPolicy::Keep) => {
                     return Ok((
                         Some(cache_data_opt.unwrap().http_response),
@@ -90,8 +92,10 @@ pub trait Middleware: Send + Sync {
                     cache_manager.delete(&cache_key).await?;
                     return Ok((None, CacheHitResult::CacheEvict));
                 }
-                // no cached data or update
-                _ => {}
+                // cache data needs to be updated
+                Some(CacheKeepPolicy::Update) => {}
+                // cache miss => deside later
+                None => {}
             }
 
             // Cache miss
@@ -133,28 +137,7 @@ pub trait Middleware: Send + Sync {
                 CacheHitResult::CacheMiss
             };
 
-            return Ok((Some(remote_response_with_body), cache_hit_result));
+            Ok((Some(remote_response_with_body), cache_hit_result))
         }
     }
-}
-
-fn process_cache_hit<AdditionalParams, CacheTimeType>(
-    request: &HTTPRequest,
-    cache_data_opt: &Option<CacheData<CacheTimeType>>,
-    additional_params: &AdditionalParams,
-    cache_keep_fn: &Option<CacheKeepFn<AdditionalParams, CacheTimeType>>,
-) -> Option<CacheKeepPolicy> {
-    let Some(cache_data) = cache_data_opt else {
-        return None;
-    };
-
-    Some(match cache_keep_fn {
-        None => CacheKeepPolicy::Keep,
-        Some(cache_keep_fn) => cache_keep_fn(
-            request,
-            &cache_data.http_response,
-            &cache_data.expiration_time,
-            &additional_params,
-        ),
-    })
 }

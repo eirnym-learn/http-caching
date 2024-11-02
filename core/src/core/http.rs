@@ -4,7 +4,7 @@ use std::{collections::HashMap, future::Future};
 use url::Url;
 
 use crate::core::Result;
-/// Http Request status
+/// Http Request data
 pub trait HttpRequest: Send {
     /// HTTP request method
     fn method(&self) -> HttpMethod;
@@ -16,7 +16,7 @@ pub trait HttpRequest: Send {
     fn body(&self) -> Vec<u8>;
 }
 
-/// Http Response without body
+/// Http Response data with optional body
 pub trait HttpResponse: Send + Sync {
     /// HTTP response version
     fn version(&self) -> HttpVersion;
@@ -152,22 +152,18 @@ impl HTTPRequest {
 }
 
 impl HttpRequest for HTTPRequest {
-    #[doc = "HTTP request method"]
     fn method(&self) -> HttpMethod {
         self.method.clone()
     }
 
-    #[doc = "HTTP request URL"]
     fn url(&self) -> Url {
         self.url.clone()
     }
 
-    #[doc = "HTTP request headers"]
     fn headers(&self) -> HashMap<String, Vec<String>> {
         self.headers.clone()
     }
 
-    #[doc = "HTTP request body"]
     fn body(&self) -> Vec<u8> {
         self.body.clone()
     }
@@ -177,7 +173,7 @@ impl HTTPResponse {
     /// Easy constructor to create from arbitraty implementation
     pub async fn new(value: &impl HttpResponse) -> Result<Self> {
         Ok(HTTPResponse {
-            version: value.version().clone(),
+            version: value.version(),
             status: value.status(),
             reason: value.reason().clone(),
             url: value.url().clone(),
@@ -187,7 +183,7 @@ impl HTTPResponse {
     }
     pub fn new_no_body(value: &impl HttpResponse) -> Self {
         HTTPResponse {
-            version: value.version().clone(),
+            version: value.version(),
             status: value.status(),
             reason: value.reason().clone(),
             url: value.url().clone(),
@@ -203,47 +199,38 @@ impl HTTPResponse {
 }
 
 impl HttpResponse for HTTPResponse {
-    #[doc = "HTTP response version"]
     fn version(&self) -> HttpVersion {
-        self.version.clone()
+        self.version
     }
 
-    #[doc = "HTTP response url"]
     fn url(&self) -> Url {
         self.url.clone()
     }
 
-    #[doc = "HTTP response status code"]
     fn status(&self) -> u16 {
         self.status
     }
 
-    #[doc = "HTTP response status reason"]
     fn reason(&self) -> String {
         self.reason.clone()
     }
 
-    #[doc = "HTTP response headers"]
     fn headers(&self) -> HashMap<String, Vec<String>> {
         self.headers.clone()
     }
 
-    #[doc = "HTTP response body"]
-    fn body(&self) -> impl Future<Output = Result<Vec<u8>>> + Send {
-        async { Ok(self.body.clone()) }
+    async fn body(&self) -> Result<Vec<u8>> {
+        Ok(self.body.clone())
     }
 }
 
-// save to JSON
-// https://stackoverflow.com/questions/55653917/how-to-serialize-httpheadermap-into-json
-
 fn common_status_category(status: u16) -> HttpResponseStatus {
-    return match status {
+    match status {
         100..200 => HttpResponseStatus::Status1xx,
         200..300 => HttpResponseStatus::Status2xx,
         300..400 => HttpResponseStatus::Status3xx,
         400..500 => HttpResponseStatus::Status4xx,
         500..600 => HttpResponseStatus::Status5xx,
         _ => HttpResponseStatus::StatusUnknown,
-    };
+    }
 }
