@@ -1,7 +1,16 @@
 [workspace]
-edition = "2021"
 resolver = "2"
 
 members = [
     "core",
 ]
+
+[workspace.package]
+authors    = ["eirnym"]
+edition    = "2021"
+
+[workspace.dependencies]
+# async-trait = { version = "0.1.83" }
+serde = { version = "1.0.210" }
+chrono = {version = "0.4.38" }
+url = { version = "2.5.2"}

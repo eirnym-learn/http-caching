@@ -1,9 +1,9 @@
-use super::cache::CacheTimestamp;
 use super::http::{HTTPRequest, HTTPResponse};
 use std::sync::Arc;
 
 /// Policy how response needs to be cached
-pub enum CacheResponsePolicy {
+#[derive(Debug, PartialEq)]
+pub enum CacheResponseExpiration<CacheTimeType> {
     /// Don't cache response
     NoCache,
 
@@ -11,11 +11,11 @@ pub enum CacheResponsePolicy {
     CacheWithoutExpirationDate,
 
     /// Cache with given expiration date.
-    CacheWithExpirationDate(CacheTimestamp),
+    CacheWithExpirationDate(CacheTimeType),
 }
 
-/// Represent generated cache key.
-pub enum CacheKey {
+/// Represent generated cache key based on the request.
+pub enum CacheRequestKey {
     /// No key associated with a request.
     NoKey,
     /// Given key associated with the request.
@@ -23,7 +23,7 @@ pub enum CacheKey {
 }
 
 /// If element should be kept or evicted.
-pub enum CacheKeep {
+pub enum CacheKeepPolicy {
     /// Data should be kept.
     Keep,
 
@@ -41,7 +41,7 @@ pub enum CacheKeep {
 ///
 /// A closure takes something implementing [`crate::http::HttpRequest`] and returns a [`CacheKey`].
 pub type CacheKeyFn<AdditionalParams> =
-    Arc<dyn Fn(&HTTPRequest, &AdditionalParams) -> CacheKey + Send + Sync>;
+    Arc<dyn Fn(&HTTPRequest, &AdditionalParams) -> CacheRequestKey + Send + Sync>;
 
 /// Return what should be done with given cache entry.
 ///
@@ -57,8 +57,13 @@ pub type CacheKeyFn<AdditionalParams> =
 ///
 /// A closure that takes [`crate::http::HTTPRequest`], [`crate::http::HTTPResponse`] and expiration timestamp from cache
 /// and returns a [`CacheBust`].
-pub type CacheKeepFn<AdditionalParams> = Arc<
-    dyn Fn(&HTTPRequest, &HTTPResponse, &Option<CacheTimestamp>, &AdditionalParams) -> CacheKeep
+pub type CacheKeepFn<AdditionalParams, CacheTimeType> = Arc<
+    dyn Fn(
+            &HTTPRequest,
+            &HTTPResponse,
+            &Option<CacheTimeType>,
+            &AdditionalParams,
+        ) -> CacheKeepPolicy
         + Send
         + Sync,
 >;
@@ -70,12 +75,21 @@ pub type CacheKeepFn<AdditionalParams> = Arc<
 /// NOTE: Function is called on every request, only on cache miss.
 ///
 /// A closure that takes [`crate::http::HTTPRequest`] and [`crate::http::HttpResponse`] headers and returns a [`CachePolicy`].
-pub type CacheResponsePolicyFn<AdditionalParams> = Arc<
-    dyn Fn(&HTTPRequest, &HTTPResponse, &AdditionalParams) -> CacheResponsePolicy + Send + Sync,
+pub type CacheResponsePolicyFn<AdditionalParams, CacheTimeType> = Arc<
+    dyn Fn(&HTTPRequest, &HTTPResponse, &AdditionalParams) -> CacheResponseExpiration<CacheTimeType>
+        + Send
+        + Sync,
 >;
 
+/// Return current timestamp to be written to cache.
+pub type CacheTimeFn<CacheTimeType> = Arc<dyn Fn() -> CacheTimeType + Send + Sync>;
+
 /// Additional cache configuration
-pub struct CacheConfig<AdditionalParams> {
+pub struct CacheConfig<AdditionalParams, CacheTimeType>
+where
+    AdditionalParams: Send + Sync,
+    CacheTimeType: Send + Sync,
+{
     /// Generate key based on HTTP given request. CacheKey::NoKey by default.
     ///
     /// An override can be useful to override key function to exclude certain query parameters, fragments, etc,
@@ -93,12 +107,15 @@ pub struct CacheConfig<AdditionalParams> {
     ///
     /// NOTE: If closure call results in real request to be made, cache policy would be called.
     /// If NoCache policy is associated with HTTP response, cache entry will be evicted.
-    pub cache_keep_fn: Option<CacheKeepFn<AdditionalParams>>,
+    pub cache_keep_fn: Option<CacheKeepFn<AdditionalParams, CacheTimeType>>,
 
     /// Return cache policy how given real response data needs to be cached.
     ///
     /// Provided HTTP Response to this closure has no body read from the network.
     ///
     /// NOTE: Function is called on every request, only on cache miss.
-    pub cache_policy_fn: Option<CacheResponsePolicyFn<AdditionalParams>>,
+    pub cache_policy_fn: Option<CacheResponsePolicyFn<AdditionalParams, CacheTimeType>>,
+
+    /// Return current timestamp to be written to cache.
+    pub now_fn: CacheTimeFn<CacheTimeType>,
 }
