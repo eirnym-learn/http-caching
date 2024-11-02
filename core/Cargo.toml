@@ -1,0 +1,11 @@
+[package]
+name = "http-caching"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+
+[dependencies]
+# async-trait = "0.1.83"
+serde = "1.0.210"
+url = { version = "2.5.2", features = ["serde"] }
+chrono = "0.4.38"
