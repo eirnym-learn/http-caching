@@ -73,6 +73,7 @@ pub type CacheResponsePolicyFn<AdditionalParams, CacheTimeType> = Arc<
 pub type CacheTimeFn<CacheTimeType> = Arc<dyn Fn() -> CacheTimeType + Send + Sync>;
 
 /// Additional cache configuration
+/// REVIEW: Should it be a trait?
 pub struct CacheConfig<AdditionalParams, CacheTimeType>
 where
     AdditionalParams: Send + Sync,

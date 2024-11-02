@@ -57,13 +57,10 @@ pub trait Middleware: Send + Sync {
     {
         async {
             let cache_config = self.cache_config();
-            let Some(key_fn) = &cache_config.key_fn else {
-                return Ok((None, CacheHitResult::CacheOff));
-            };
-
             let additional_params = self.additional_params();
 
-            let cache_config::CacheRequestKey::Key(cache_key) = key_fn(request, additional_params)
+            let cache_config::CacheRequestKey::Key(cache_key) =
+                (cache_config.key_fn)(request, additional_params)
             else {
                 return Ok((None, CacheHitResult::CacheOff));
             };
@@ -73,7 +70,7 @@ pub trait Middleware: Send + Sync {
             // TODO: proper error handling on await
             let cache_data_opt = cache_manager.get(&cache_key).await?;
 
-            let cache_keep = if let Some(cache_data) = cache_data_opt {
+            let cache_keep = if let Some(cache_data) = &cache_data_opt {
                 Some((cache_config.cache_keep_fn)(
                     request,
                     &cache_data.http_response,
