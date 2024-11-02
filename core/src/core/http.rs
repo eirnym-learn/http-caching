@@ -1,3 +1,4 @@
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, future::Future};
 use url::Url;
@@ -36,8 +37,9 @@ pub trait HttpResponse: Send + Sync {
     }
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// Http request as a struct ready to searilization
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HTTPRequest {
     /// HTTP request method
     pub method: HttpMethod,
@@ -49,8 +51,9 @@ pub struct HTTPRequest {
     pub body: Vec<u8>,
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// Http request as a struct ready to searilization
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HTTPResponse {
     /// HTTP response version
     pub version: HttpVersion,
@@ -66,10 +69,11 @@ pub struct HTTPResponse {
     pub body: Vec<u8>,
 }
 
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(untagged))]
 /// Collection of common HTTP response status categories
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
-#[serde(untagged)]
 pub enum HttpResponseStatus {
     /// Informational Responses
     Status1xx,
@@ -86,9 +90,10 @@ pub enum HttpResponseStatus {
 }
 
 /// Represents an HTTP method
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(untagged, rename_all_fields = "UPPERCASE"))]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
-#[serde(untagged, rename_all_fields = "UPPERCASE")]
 pub enum HttpMethod {
     /// OPTIONS Http Method
     Options,
@@ -113,23 +118,24 @@ pub enum HttpMethod {
 }
 
 /// Represents an HTTP version
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Deserialize, Serialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum HttpVersion {
     /// HTTP Version 0.9
-    #[serde(rename = "HTTP/0.9")]
+    #[cfg_attr(feature = "serde", serde(rename = "HTTP/0.9"))]
     Http09,
     /// HTTP Version 1.0
-    #[serde(rename = "HTTP/1.0")]
+    #[cfg_attr(feature = "serde", serde(rename = "HTTP/1.0"))]
     Http10,
     /// HTTP Version 1.1
-    #[serde(rename = "HTTP/1.1")]
+    #[cfg_attr(feature = "serde", serde(rename = "HTTP/1.1"))]
     Http11,
     /// HTTP Version 2.0
-    #[serde(rename = "HTTP/2.0")]
+    #[cfg_attr(feature = "serde", serde(rename = "HTTP/2.0"))]
     H2,
     /// HTTP Version 3.0
-    #[serde(rename = "HTTP/3.0")]
+    #[cfg_attr(feature = "serde", serde(rename = "HTTP/3.0"))]
     H3,
 }
 

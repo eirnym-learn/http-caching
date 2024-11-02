@@ -1,17 +1,13 @@
-use super::{
-    error::Result,
-    http::{HTTPRequest, HTTPResponse},
-};
-
-pub type CacheTimestamp = chrono::DateTime<chrono::Utc>;
+use super::error::Result;
+use super::http::{HTTPRequest, HTTPResponse};
 
 /// Data to be stored in cache
-pub struct CacheData {
+pub struct CacheData<CacheTimeType> {
     /// Timestamp when call has been recorded
-    pub call_timestamp: CacheTimestamp,
+    pub call_timestamp: CacheTimeType,
 
     /// Presumable time to expire this record. None means to cache indefinitely
-    pub expiration_time: Option<CacheTimestamp>,
+    pub expiration_time: Option<CacheTimeType>,
 
     /// HTTP Request data.
     /// In some cases it could be useful to get it back.
@@ -23,22 +19,23 @@ pub struct CacheData {
 
 /// A trait providing methods for storing, reading, and removing cache records.
 pub trait CacheManager: Send + Sync {
+    type CacheTimeType: Send + Sync;
     /// Attempt to pull a cached response.
     fn get(
         &self,
         cache_key: &String,
-    ) -> impl std::future::Future<Output = Result<Option<CacheData>>> + Send + Sync;
+    ) -> impl std::future::Future<Output = Result<Option<CacheData<Self::CacheTimeType>>>> + Send + Sync;
 
     /// Attempt to put data in cache.
     fn put(
         &self,
         cache_key: &String,
-        data: &CacheData,
+        data: &CacheData<Self::CacheTimeType>,
     ) -> impl std::future::Future<Output = Result<()>> + Send + Sync;
 
     /// Attempt to remove a record from cache.
     fn delete(
         &self,
         cache_key: &String,
-    ) -> impl std::future::Future<Output = Result<Option<CacheData>>> + Send + Sync;
+    ) -> impl std::future::Future<Output = Result<Option<CacheData<Self::CacheTimeType>>>> + Send + Sync;
 }
