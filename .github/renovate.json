@@ -4,6 +4,9 @@
   "extends": [
     "config:base"
   ],
+  "pre-commit": {
+    "enabled": true
+  },
   "separateMajorMinor": true,
   "separateMinorPatch": true,
   "separateMultipleMajor": true
