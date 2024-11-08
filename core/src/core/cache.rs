@@ -23,19 +23,19 @@ pub trait CacheManager: Send + Sync {
     /// Attempt to pull a cached response.
     fn get(
         &self,
-        cache_key: &String,
+        cache_key: &str,
     ) -> impl std::future::Future<Output = Result<Option<CacheData<Self::CacheTimeType>>>> + Send + Sync;
 
     /// Attempt to put data in cache.
     fn put(
         &self,
-        cache_key: &String,
+        cache_key: &str,
         data: &CacheData<Self::CacheTimeType>,
     ) -> impl std::future::Future<Output = Result<()>> + Send + Sync;
 
     /// Attempt to remove a record from cache.
     fn delete(
         &self,
-        cache_key: &String,
+        cache_key: &str,
     ) -> impl std::future::Future<Output = Result<Option<CacheData<Self::CacheTimeType>>>> + Send + Sync;
 }
