@@ -51,18 +51,19 @@ pub trait Middleware: Send + Sync {
         &self,
         request: &HTTPRequest,
         remote_caller: &impl RequestCaller,
-    ) -> impl std::future::Future<Output = Result<(Option<HTTPResponse>, CacheHitResult)>> + Send
-    {
-        async {
-            let cache_config = self.cache_config();
-            let additional_params = self.additional_params();
+    ) -> Result<
+        impl std::future::Future<Output = Result<(Option<HTTPResponse>, CacheHitResult)>> + Send,
+    > {
+        let cache_config = self.cache_config();
+        let additional_params = self.additional_params();
 
-            let cache_config::CacheRequestKey::Key(cache_key) =
-                (cache_config.key_fn)(request, additional_params)
-            else {
-                return Ok((None, CacheHitResult::CacheOff));
-            };
+        let cache_config::CacheRequestKey::Key(cache_key) =
+            (cache_config.key_fn)(request, additional_params)
+        else {
+            return Err(super::Error::CacheOff);
+        };
 
+        Ok(async move {
             let cache_manager = self.cache_manager();
 
             // TODO: proper error handling on await
@@ -138,6 +139,6 @@ pub trait Middleware: Send + Sync {
             };
 
             Ok((Some(remote_response_with_body), cache_hit_result))
-        }
+        })
     }
 }
