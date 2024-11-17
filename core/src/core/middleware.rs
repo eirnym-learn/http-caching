@@ -77,6 +77,7 @@ pub trait Middleware: Send + Sync {
                 (cache_config.cache_keep_fn)(
                     request,
                     &cache_data.http_response,
+                    &cache_data.call_timestamp,
                     &cache_data.expiration_time,
                     additional_params,
                 )
