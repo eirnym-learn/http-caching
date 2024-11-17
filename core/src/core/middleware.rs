@@ -1,7 +1,7 @@
 use super::cache::{CacheData, CacheManager};
-use super::cache_config::{self, CacheConfig, CacheKeepPolicy, CacheResponseExpiration};
 use super::error::Result;
 use super::http::{HTTPRequest, HTTPResponse, HttpResponse};
+use super::middleware_config::{self, CacheKeepPolicy, CacheResponseExpiration, MiddlewareConfig};
 
 #[derive(Clone)]
 pub enum CacheHitResult {
@@ -46,7 +46,9 @@ pub trait Middleware: Send + Sync {
     fn additional_params(&self) -> &Self::AdditionalParams;
 
     /// Return cache config
-    fn cache_config(&self) -> &CacheConfig<Self::AdditionalParams, Self::Headers, Self::CacheTime>;
+    fn middeware_config(
+        &self,
+    ) -> &MiddlewareConfig<Self::AdditionalParams, Self::Headers, Self::CacheTime>;
 
     /// Handle request and return HTTP response with cache hit result
     ///
@@ -59,10 +61,10 @@ pub trait Middleware: Send + Sync {
         Output = Result<(Option<HTTPResponse<Self::Headers>>, CacheHitResult)>,
     > + Send {
         async {
-            let cache_config = self.cache_config();
+            let cache_config = self.middeware_config();
             let additional_params = self.additional_params();
 
-            let cache_config::CacheRequestKey::Key(cache_key) =
+            let middleware_config::CacheRequestKey::Key(cache_key) =
                 (cache_config.key_fn)(request, additional_params)
             else {
                 return Ok((None, CacheHitResult::CacheOff));
@@ -146,7 +148,7 @@ pub trait Middleware: Send + Sync {
             };
 
             let new_cache_data = CacheData::<Self::CacheTime, Self::Headers> {
-                call_timestamp: (cache_config.now_fn)(),
+                call_timestamp: (cache_config.time_now_fn)(),
                 expiration_time,
                 http_request: HTTPRequest::new(request),
                 http_response: remote_response_with_body.clone(),

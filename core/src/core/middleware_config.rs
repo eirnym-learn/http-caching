@@ -76,11 +76,11 @@ pub type CacheResponsePolicyFn<AdditionalParams, Headers, CacheTime> = Arc<
 >;
 
 /// Return current timestamp to be written to cache.
-pub type CacheTimeFn<CacheTime> = Arc<dyn Fn() -> CacheTime + Send + Sync>;
+pub type CacheTimeNowFn<CacheTime> = Arc<dyn Fn() -> CacheTime + Send + Sync>;
 
 /// Additional cache configuration
 /// REVIEW: Should it be a trait?
-pub struct CacheConfig<AdditionalParams, Headers, CacheTime>
+pub struct MiddlewareConfig<AdditionalParams, Headers, CacheTime>
 where
     AdditionalParams: Send + Sync,
     CacheTime: Send + Sync,
@@ -102,5 +102,5 @@ where
     pub cache_policy_fn: Option<CacheResponsePolicyFn<AdditionalParams, Headers, CacheTime>>,
 
     /// Return current timestamp to be written as a cache timestamp.
-    pub now_fn: CacheTimeFn<CacheTime>,
+    pub time_now_fn: CacheTimeNowFn<CacheTime>,
 }
