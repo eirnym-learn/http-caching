@@ -7,8 +7,8 @@ categories   = ["http", "http-request"]
 keywords     = ["http", "request", "cache", "caching"]
 readme       = false
 
-authors      = { workspace = true }
-edition      = { workspace = true }
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 url = { workspace = true }
@@ -24,4 +24,4 @@ serde = [ "dep:serde", "url/serde", "chrono?/serde" ]
 chrono = [ "dep:chrono" ]
 
 [package.metadata.docs.rs]
-features = ["serde", "schema"]
+features = ["serde", "chrono"]
