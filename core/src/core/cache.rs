@@ -13,7 +13,7 @@ pub struct CacheData<CacheTime> {
     /// In some cases it could be useful to get it back.
     pub http_request: HTTPRequest,
 
-    /// HTTP Response data
+    /// HTTP Response data.
     pub http_response: HTTPResponse,
 }
 

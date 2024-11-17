@@ -9,9 +9,9 @@ pub trait HttpRequest: Send {
     /// HTTP request method
     fn method(&self) -> HttpMethod;
     /// HTTP request URL
-    fn url(&self) -> Url;
+    fn url(&self) -> &Url;
     /// HTTP request headers
-    fn headers(&self) -> HashMap<String, Vec<String>>;
+    fn headers(&self) -> &HashMap<String, Vec<String>>;
     /// HTTP request body
     fn body(&self) -> Vec<u8>;
 }
@@ -27,7 +27,7 @@ pub trait HttpResponse: Send + Sync {
     /// HTTP response status reason
     fn reason(&self) -> String;
     /// HTTP response headers
-    fn headers(&self) -> HashMap<String, Vec<String>>;
+    fn headers(&self) -> &HashMap<String, Vec<String>>;
     /// HTTP response body — called only when required
     fn body(&self) -> impl Future<Output = Result<Vec<u8>>> + Send + Sync;
 
@@ -156,12 +156,12 @@ impl HttpRequest for HTTPRequest {
         self.method.clone()
     }
 
-    fn url(&self) -> Url {
-        self.url.clone()
+    fn url(&self) -> &Url {
+        &self.url
     }
 
-    fn headers(&self) -> HashMap<String, Vec<String>> {
-        self.headers.clone()
+    fn headers(&self) -> &HashMap<String, Vec<String>> {
+        &self.headers
     }
 
     fn body(&self) -> Vec<u8> {
@@ -215,8 +215,8 @@ impl HttpResponse for HTTPResponse {
         self.reason.clone()
     }
 
-    fn headers(&self) -> HashMap<String, Vec<String>> {
-        self.headers.clone()
+    fn headers(&self) -> &HashMap<String, Vec<String>> {
+        &self.headers
     }
 
     async fn body(&self) -> Result<Vec<u8>> {
