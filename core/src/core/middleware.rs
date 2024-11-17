@@ -29,7 +29,8 @@ pub trait RequestCaller: Send + Sync {
     ) -> impl std::future::Future<Output = Result<impl HttpResponse>> + Send + Sync;
 }
 
-// REVIEW: could it be just a function?
+// TODO: Rewrite trait to a function with parameters.
+// TODO: Move parameters into a trait/structure.
 pub trait Middleware: Send + Sync {
     type CacheTime: Send + Sync;
     type AdditionalParams: Send + Sync;
