@@ -48,11 +48,11 @@ pub type CacheKeyFn<AdditionalParams, Headers> =
 ///
 /// Function is called on every cache hit. It's never called on cache miss.
 ///
-// REVIEW: should we pass call timestamp there as well?
 pub type CacheKeepFn<AdditionalParams, Headers, CacheTime> = Arc<
     dyn Fn(
             &HTTPRequest<Headers>,
             &HTTPResponse<Headers>,
+            &CacheTime,
             &Option<CacheTime>,
             &AdditionalParams,
         ) -> CacheKeepPolicy
