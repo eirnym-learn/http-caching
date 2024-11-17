@@ -110,9 +110,19 @@ pub trait Middleware: Send + Sync {
                 }
             };
 
+            // TODO: proper error handling on await
+            let remote_response_with_body = HTTPResponse {
+                body: remote_response.body().await?,
+                version: remote_response_no_body.version,
+                url: remote_response_no_body.url,
+                status: remote_response_no_body.status,
+                reason: remote_response_no_body.reason,
+                headers: remote_response_no_body.headers,
+            };
+
             let expiration_time = match cache_policy {
                 CacheResponseExpiration::NoCache => {
-                    return Ok((Some(remote_response_no_body), CacheHitResult::CacheOff))
+                    return Ok((Some(remote_response_with_body), CacheHitResult::CacheOff));
                 }
                 CacheResponseExpiration::CacheWithoutExpirationDate => None,
                 CacheResponseExpiration::CacheWithExpirationDate(expiration_date) => {
@@ -120,8 +130,6 @@ pub trait Middleware: Send + Sync {
                 }
             };
 
-            // TODO: proper error handling on await
-            let remote_response_with_body = HTTPResponse::new(&remote_response).await?;
             let new_cache_data = CacheData::<Self::CacheTime> {
                 call_timestamp: (cache_config.now_fn)(),
                 expiration_time,
