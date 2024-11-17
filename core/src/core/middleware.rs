@@ -31,9 +31,9 @@ pub trait RequestCaller: Send + Sync {
 
 // REVIEW: could it be just a function?
 pub trait Middleware: Send + Sync {
-    type CacheTimeType: Send + Sync;
+    type CacheTime: Send + Sync;
     type AdditionalParams: Send + Sync;
-    type MiddlewareCacheManager: CacheManager<CacheTimeType = Self::CacheTimeType> + Send + Sync;
+    type MiddlewareCacheManager: CacheManager<CacheTime = Self::CacheTime> + Send + Sync;
 
     /// Return an instance of cache manager
     fn cache_manager(&self) -> &Self::MiddlewareCacheManager;
@@ -42,7 +42,7 @@ pub trait Middleware: Send + Sync {
     fn additional_params(&self) -> &Self::AdditionalParams;
 
     /// Return cache config
-    fn cache_config(&self) -> &CacheConfig<Self::AdditionalParams, Self::CacheTimeType>;
+    fn cache_config(&self) -> &CacheConfig<Self::AdditionalParams, Self::CacheTime>;
 
     /// Handle request and return HTTP response with cache hit result
     ///
@@ -121,7 +121,7 @@ pub trait Middleware: Send + Sync {
 
             // TODO: proper error handling on await
             let remote_response_with_body = HTTPResponse::new(&remote_response).await?;
-            let new_cache_data = CacheData::<Self::CacheTimeType> {
+            let new_cache_data = CacheData::<Self::CacheTime> {
                 call_timestamp: (cache_config.now_fn)(),
                 expiration_time,
                 http_request: request.clone(),
