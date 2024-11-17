@@ -1,23 +1,27 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, future::Future};
+use std::future::Future;
 use url::Url;
 
 use crate::core::Result;
 /// Http Request data
 pub trait HttpRequest: Send {
+    type Headers: Clone + Send + Sync;
+
     /// HTTP request method
     fn method(&self) -> HttpMethod;
     /// HTTP request URL
     fn url(&self) -> &Url;
     /// HTTP request headers
-    fn headers(&self) -> &HashMap<String, Vec<String>>;
+    fn headers(&self) -> &Self::Headers;
     /// HTTP request body
     fn body(&self) -> Vec<u8>;
 }
 
 /// Http Response data with optional body
 pub trait HttpResponse: Send + Sync {
+    type Headers: Clone + Send + Sync;
+
     /// HTTP response version
     fn version(&self) -> HttpVersion;
     /// HTTP response url
@@ -27,7 +31,7 @@ pub trait HttpResponse: Send + Sync {
     /// HTTP response status reason
     fn reason(&self) -> String;
     /// HTTP response headers
-    fn headers(&self) -> &HashMap<String, Vec<String>>;
+    fn headers(&self) -> &Self::Headers;
     /// HTTP response body — called only when required
     fn body(&self) -> impl Future<Output = Result<Vec<u8>>> + Send + Sync;
 
@@ -40,13 +44,16 @@ pub trait HttpResponse: Send + Sync {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// Http request as a struct ready to searilization
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HTTPRequest {
+pub struct HTTPRequest<Headers>
+where
+    Headers: Clone + Send + Sync,
+{
     /// HTTP request method
     pub method: HttpMethod,
     /// HTTP request URL
     pub url: Url,
     /// HTTP request headers
-    pub headers: HashMap<String, Vec<String>>,
+    pub headers: Headers,
     /// HTTP request body
     pub body: Vec<u8>,
 }
@@ -54,7 +61,10 @@ pub struct HTTPRequest {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// Http request as a struct ready to searilization
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HTTPResponse {
+pub struct HTTPResponse<Headers>
+where
+    Headers: Clone + Send + Sync,
+{
     /// HTTP response version
     pub version: HttpVersion,
     /// HTTP response url
@@ -64,7 +74,7 @@ pub struct HTTPResponse {
     /// HTTP response status reason
     pub reason: String,
     /// HTTP response headers
-    pub headers: HashMap<String, Vec<String>>,
+    pub headers: Headers,
     /// HTTP response body
     pub body: Vec<u8>,
 }
@@ -139,9 +149,9 @@ pub enum HttpVersion {
     H3,
 }
 
-impl HTTPRequest {
+impl<Headers: Clone + Send + Sync> HTTPRequest<Headers> {
     /// Easy constructor to create from arbitraty implementation
-    pub fn new(value: &impl HttpRequest) -> Self {
+    pub fn new(value: &impl HttpRequest<Headers = Headers>) -> Self {
         HTTPRequest {
             method: value.method().clone(),
             url: value.url().clone(),
@@ -151,7 +161,9 @@ impl HTTPRequest {
     }
 }
 
-impl HttpRequest for HTTPRequest {
+impl<Headers: Clone + Send + Sync> HttpRequest for HTTPRequest<Headers> {
+    type Headers = Headers;
+
     fn method(&self) -> HttpMethod {
         self.method.clone()
     }
@@ -160,7 +172,7 @@ impl HttpRequest for HTTPRequest {
         &self.url
     }
 
-    fn headers(&self) -> &HashMap<String, Vec<String>> {
+    fn headers(&self) -> &Headers {
         &self.headers
     }
 
@@ -169,36 +181,15 @@ impl HttpRequest for HTTPRequest {
     }
 }
 
-impl HTTPResponse {
-    /// Easy constructor to create from arbitraty implementation
-    pub async fn new(value: &impl HttpResponse) -> Result<Self> {
-        Ok(HTTPResponse {
-            version: value.version(),
-            status: value.status(),
-            reason: value.reason().clone(),
-            url: value.url().clone(),
-            headers: value.headers().clone(),
-            body: value.body().await?.clone(),
-        })
-    }
-    pub fn new_no_body(value: &impl HttpResponse) -> Self {
-        HTTPResponse {
-            version: value.version(),
-            status: value.status(),
-            reason: value.reason().clone(),
-            url: value.url().clone(),
-            headers: value.headers().clone(),
-            body: vec![],
-        }
-    }
-
+impl<Headers: Clone + Send + Sync> HTTPResponse<Headers> {
     /// Easy way to obtain HTTP response status category
     pub fn status_category(&self) -> HttpResponseStatus {
         common_status_category(self.status())
     }
 }
 
-impl HttpResponse for HTTPResponse {
+impl<Headers: Clone + Send + Sync> HttpResponse for HTTPResponse<Headers> {
+    type Headers = Headers;
     fn version(&self) -> HttpVersion {
         self.version
     }
@@ -215,7 +206,7 @@ impl HttpResponse for HTTPResponse {
         self.reason.clone()
     }
 
-    fn headers(&self) -> &HashMap<String, Vec<String>> {
+    fn headers(&self) -> &Headers {
         &self.headers
     }
 

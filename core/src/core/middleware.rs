@@ -1,7 +1,7 @@
 use super::cache::{CacheData, CacheManager};
 use super::cache_config::{self, CacheConfig, CacheKeepPolicy, CacheResponseExpiration};
 use super::error::Result;
-use super::http::{HTTPRequest, HTTPResponse, HttpRequest, HttpResponse};
+use super::http::{HTTPRequest, HTTPResponse, HttpResponse};
 
 #[derive(Clone)]
 pub enum CacheHitResult {
@@ -20,21 +20,24 @@ pub enum CacheHitResult {
 /// Abstraction to do remote call for given request
 // TODO: fill extensions as needed
 pub trait RequestCaller: Send + Sync {
-    type Request: HttpRequest;
-    type Response: HttpResponse;
+    type Headers: Clone + Send + Sync;
+    type Response: HttpResponse<Headers = Self::Headers>;
     /// Call remote server to get actual HTTP response
     fn read_remote_headers(
         &self,
-        request: &impl HttpRequest,
-    ) -> impl std::future::Future<Output = Result<impl HttpResponse>> + Send + Sync;
+        request: &HTTPRequest<Self::Headers>,
+    ) -> impl std::future::Future<Output = Result<Self::Response>> + Send + Sync;
 }
 
 // TODO: Rewrite trait to a function with parameters.
 // TODO: Move parameters into a trait/structure.
 pub trait Middleware: Send + Sync {
+    type Headers: Clone + Send + Sync;
     type CacheTime: Send + Sync;
     type AdditionalParams: Send + Sync;
-    type MiddlewareCacheManager: CacheManager<CacheTime = Self::CacheTime> + Send + Sync;
+    type MiddlewareCacheManager: CacheManager<CacheTime = Self::CacheTime, Headers = Self::Headers>
+        + Send
+        + Sync;
 
     /// Return an instance of cache manager
     fn cache_manager(&self) -> &Self::MiddlewareCacheManager;
@@ -43,17 +46,18 @@ pub trait Middleware: Send + Sync {
     fn additional_params(&self) -> &Self::AdditionalParams;
 
     /// Return cache config
-    fn cache_config(&self) -> &CacheConfig<Self::AdditionalParams, Self::CacheTime>;
+    fn cache_config(&self) -> &CacheConfig<Self::AdditionalParams, Self::Headers, Self::CacheTime>;
 
     /// Handle request and return HTTP response with cache hit result
     ///
     /// if response is None, then request hasn't been made, and caller should do it manually
     fn handle_request(
         &self,
-        request: &HTTPRequest,
-        remote_caller: &impl RequestCaller,
-    ) -> impl std::future::Future<Output = Result<(Option<HTTPResponse>, CacheHitResult)>> + Send
-    {
+        request: &HTTPRequest<Self::Headers>,
+        remote_caller: &impl RequestCaller<Headers = Self::Headers>,
+    ) -> impl std::future::Future<
+        Output = Result<(Option<HTTPResponse<Self::Headers>>, CacheHitResult)>,
+    > + Send {
         async {
             let cache_config = self.cache_config();
             let additional_params = self.additional_params();
@@ -102,7 +106,16 @@ pub trait Middleware: Send + Sync {
             // Cache miss
             // TODO: proper error handling on await
             let remote_response = remote_caller.read_remote_headers(request).await?;
-            let remote_response_no_body = HTTPResponse::new_no_body(&remote_response);
+
+            let remote_response_no_body = HTTPResponse {
+                version: remote_response.version(),
+                status: remote_response.status(),
+                reason: remote_response.reason().clone(),
+                url: remote_response.url().clone(),
+                headers: remote_response.headers().clone(),
+                body: vec![],
+            };
+
             let cache_policy = match &cache_config.cache_policy_fn {
                 None => CacheResponseExpiration::NoCache,
                 Some(cache_policy_fn) => {
@@ -111,6 +124,7 @@ pub trait Middleware: Send + Sync {
             };
 
             // TODO: proper error handling on await
+            // Copy already read data and append body.
             let remote_response_with_body = HTTPResponse {
                 body: remote_response.body().await?,
                 version: remote_response_no_body.version,
@@ -130,10 +144,10 @@ pub trait Middleware: Send + Sync {
                 }
             };
 
-            let new_cache_data = CacheData::<Self::CacheTime> {
+            let new_cache_data = CacheData::<Self::CacheTime, Self::Headers> {
                 call_timestamp: (cache_config.now_fn)(),
                 expiration_time,
-                http_request: request.clone(),
+                http_request: HTTPRequest::new(request),
                 http_response: remote_response_with_body.clone(),
             };
 
