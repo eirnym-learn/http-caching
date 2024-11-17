@@ -29,7 +29,7 @@ pub enum CacheKeepPolicy {
 
 /// Expiration dates for cache
 #[derive(Debug, PartialEq)]
-pub enum CacheResponseExpiration<CacheTimeType> {
+pub enum CacheResponseExpiration<CacheTime> {
     /// Don't cache response
     NoCache,
 
@@ -37,7 +37,7 @@ pub enum CacheResponseExpiration<CacheTimeType> {
     CacheWithoutExpirationDate,
 
     /// Cache response with given expiration date.
-    CacheWithExpirationDate(CacheTimeType),
+    CacheWithExpirationDate(CacheTime),
 }
 
 /// Generate cache key based on HTTP given request.
@@ -47,13 +47,10 @@ pub type CacheKeyFn<AdditionalParams> =
 /// Deside on data on cache hit.
 ///
 /// Function is called on every cache hit. It's never called on cache miss.
-pub type CacheKeepFn<AdditionalParams, CacheTimeType> = Arc<
-    dyn Fn(
-            &HTTPRequest,
-            &HTTPResponse,
-            &Option<CacheTimeType>,
-            &AdditionalParams,
-        ) -> CacheKeepPolicy
+///
+// REVIEW: should we pass call timestamp there as well?
+pub type CacheKeepFn<AdditionalParams, CacheTime> = Arc<
+    dyn Fn(&HTTPRequest, &HTTPResponse, &Option<CacheTime>, &AdditionalParams) -> CacheKeepPolicy
         + Send
         + Sync,
 >;
@@ -63,21 +60,21 @@ pub type CacheKeepFn<AdditionalParams, CacheTimeType> = Arc<
 /// HTTP Response has no body fetched.
 ///
 /// Function is called on every cache miss and cache update (see [`crate::core::cache_config::CacheKeepFn`])
-pub type CacheResponsePolicyFn<AdditionalParams, CacheTimeType> = Arc<
-    dyn Fn(&HTTPRequest, &HTTPResponse, &AdditionalParams) -> CacheResponseExpiration<CacheTimeType>
+pub type CacheResponsePolicyFn<AdditionalParams, CacheTime> = Arc<
+    dyn Fn(&HTTPRequest, &HTTPResponse, &AdditionalParams) -> CacheResponseExpiration<CacheTime>
         + Send
         + Sync,
 >;
 
 /// Return current timestamp to be written to cache.
-pub type CacheTimeFn<CacheTimeType> = Arc<dyn Fn() -> CacheTimeType + Send + Sync>;
+pub type CacheTimeFn<CacheTime> = Arc<dyn Fn() -> CacheTime + Send + Sync>;
 
 /// Additional cache configuration
 /// REVIEW: Should it be a trait?
-pub struct CacheConfig<AdditionalParams, CacheTimeType>
+pub struct CacheConfig<AdditionalParams, CacheTime>
 where
     AdditionalParams: Send + Sync,
-    CacheTimeType: Send + Sync,
+    CacheTime: Send + Sync,
 {
     /// Generate cache key based on HTTP given request.
     pub key_fn: CacheKeyFn<AdditionalParams>,
@@ -85,15 +82,15 @@ where
     /// Return response expiration date on remote data.
     ///
     /// HTTP Response has no body fetched.
-    pub cache_keep_fn: CacheKeepFn<AdditionalParams, CacheTimeType>,
+    pub cache_keep_fn: CacheKeepFn<AdditionalParams, CacheTime>,
 
     /// Return response expiration date on remote data.
     ///
     /// HTTP Response has no body fetched.
     ///
     /// Function is called on every cache miss and cache update (see [`crate::core::cache_config::CacheKeepFn`])
-    pub cache_policy_fn: Option<CacheResponsePolicyFn<AdditionalParams, CacheTimeType>>,
+    pub cache_policy_fn: Option<CacheResponsePolicyFn<AdditionalParams, CacheTime>>,
 
     /// Return current timestamp to be written as a cache timestamp.
-    pub now_fn: CacheTimeFn<CacheTimeType>,
+    pub now_fn: CacheTimeFn<CacheTime>,
 }
