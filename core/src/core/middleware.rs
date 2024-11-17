@@ -42,9 +42,6 @@ pub trait Middleware: Send + Sync {
     /// Return an instance of cache manager
     fn cache_manager(&self) -> &Self::MiddlewareCacheManager;
 
-    /// Return additional params
-    fn additional_params(&self) -> &Self::AdditionalParams;
-
     /// Return cache config
     fn middeware_config(
         &self,
@@ -62,10 +59,8 @@ pub trait Middleware: Send + Sync {
     > + Send {
         async {
             let cache_config = self.middeware_config();
-            let additional_params = self.additional_params();
 
-            let middleware_config::CacheRequestKey::Key(cache_key) =
-                (cache_config.key_fn)(request, additional_params)
+            let middleware_config::CacheRequestKey::Key(cache_key) = cache_config.key(request)
             else {
                 return Ok((None, CacheHitResult::CacheOff));
             };
@@ -76,12 +71,11 @@ pub trait Middleware: Send + Sync {
             let cache_data_opt = cache_manager.get(&cache_key).await?;
 
             let cache_keep = cache_data_opt.as_ref().map(|cache_data| {
-                (cache_config.cache_keep_fn)(
+                cache_config.cache_keep(
                     request,
                     &cache_data.http_response,
                     &cache_data.call_timestamp,
                     &cache_data.expiration_time,
-                    additional_params,
                 )
             });
 
@@ -119,12 +113,11 @@ pub trait Middleware: Send + Sync {
                 body: vec![],
             };
 
-            let cache_policy = match &cache_config.cache_policy_fn {
-                None => CacheResponseExpiration::NoCache,
-                Some(cache_policy_fn) => {
-                    cache_policy_fn(request, &remote_response_no_body, additional_params)
-                }
-            };
+            let cache_policy = cache_config
+                .cache_policy(request, &remote_response_no_body)
+                .unwrap_or(CacheResponseExpiration::<Self::CacheTime>::NoCache);
+
+            // REVIEW: don't read whole body if NoCache returned?
 
             // TODO: proper error handling on await
             // Copy already read data and append body.

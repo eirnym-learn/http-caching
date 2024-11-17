@@ -86,6 +86,9 @@ where
     CacheTime: Send + Sync,
     Headers: Clone + Send + Sync,
 {
+    /// Addtitional parameters to pass to functions below
+    pub additional_parameters: AdditionalParams,
+
     /// Generate cache key based on HTTP given request.
     pub key_fn: CacheKeyFn<AdditionalParams, Headers>,
 
@@ -103,4 +106,45 @@ where
 
     /// Return current timestamp to be written as a cache timestamp.
     pub time_now_fn: CacheTimeNowFn<CacheTime>,
+}
+
+impl<AdditionalParams, Headers, CacheTime> MiddlewareConfig<AdditionalParams, Headers, CacheTime>
+where
+    AdditionalParams: Send + Sync,
+    CacheTime: Send + Sync,
+    Headers: Clone + Send + Sync,
+{
+    pub fn key(&self, request: &HTTPRequest<Headers>) -> CacheRequestKey {
+        (self.key_fn)(request, &self.additional_parameters)
+    }
+
+    pub fn cache_keep(
+        &self,
+        request: &HTTPRequest<Headers>,
+        response: &HTTPResponse<Headers>,
+        call_timestamp: &CacheTime,
+        expiration_time: &Option<CacheTime>,
+    ) -> CacheKeepPolicy {
+        (self.cache_keep_fn)(
+            request,
+            response,
+            call_timestamp,
+            expiration_time,
+            &self.additional_parameters,
+        )
+    }
+
+    pub fn cache_policy(
+        &self,
+        request: &HTTPRequest<Headers>,
+        response: &HTTPResponse<Headers>,
+    ) -> Option<CacheResponseExpiration<CacheTime>> {
+        self.cache_policy_fn
+            .as_ref()
+            .map(|fun| fun(request, response, &self.additional_parameters))
+    }
+
+    pub fn time_now(&self) -> CacheTime {
+        (self.time_now_fn)()
+    }
 }
