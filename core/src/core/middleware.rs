@@ -23,7 +23,7 @@ pub enum CacheHitResult {
     CacheEvict,
 }
 
-pub fn handle_response_caching<
+pub async fn handle_response_caching<
     'a,
     Headers,
     CacheTime,
@@ -36,9 +36,7 @@ pub fn handle_response_caching<
     cache_manager: &'a MiddlewareCacheManager,
     middleware_caching_config: &'a MiddlewareCachingConfig,
     current_time_fn: &'a CurrentTimeFn<CacheTime>,
-) -> impl std::future::Future<Output = Result<(Option<HTTPResponse<Headers>>, CacheHitResult)>>
-       + Send
-       + use<'a, Headers, CacheTime, MiddlewareCacheManager, MiddlewareCachingConfig, RequestCaller>
+) -> Result<(Option<HTTPResponse<Headers>>, CacheHitResult)>
 where
     CacheTime: Send + Sync,
     Headers: Clone + Send + Sync,
@@ -48,102 +46,97 @@ where
         + Sync,
     RequestCaller: middleware_config::RequestCaller<Headers = Headers>,
 {
-    async move {
-        let middleware_config::CacheRequestKey::Key(cache_key) =
-            middleware_caching_config.key(request)
-        else {
+    let middleware_config::CacheRequestKey::Key(cache_key) = middleware_caching_config.key(request)
+    else {
+        return Ok((None, CacheHitResult::CacheOff));
+    };
+
+    // TODO: proper error handling on await
+    let cache_data_opt = cache_manager.get(&cache_key).await?;
+
+    let cache_keep = cache_data_opt.as_ref().map(|cache_data| {
+        middleware_caching_config.cache_keep(
+            request,
+            &cache_data.http_response,
+            &cache_data.call_timestamp,
+            &cache_data.expiration_time,
+        )
+    });
+
+    match cache_keep {
+        Some(CacheKeepPolicy::Skip) => {
             return Ok((None, CacheHitResult::CacheOff));
-        };
-
-        // TODO: proper error handling on await
-        let cache_data_opt = cache_manager.get(&cache_key).await?;
-
-        let cache_keep = cache_data_opt.as_ref().map(|cache_data| {
-            middleware_caching_config.cache_keep(
-                request,
-                &cache_data.http_response,
-                &cache_data.call_timestamp,
-                &cache_data.expiration_time,
-            )
-        });
-
-        match cache_keep {
-            Some(CacheKeepPolicy::Skip) => {
-                return Ok((None, CacheHitResult::CacheOff));
-            }
-            Some(CacheKeepPolicy::Keep) => {
-                return Ok((
-                    Some(cache_data_opt.unwrap().http_response),
-                    CacheHitResult::CacheHit,
-                ))
-            }
-            Some(CacheKeepPolicy::Evict) => {
-                // TODO: proper error handling on await
-                cache_manager.delete(&cache_key).await?;
-                return Ok((None, CacheHitResult::CacheEvict));
-            }
-            // cache data needs to be updated
-            Some(CacheKeepPolicy::Update) => {}
-            // cache miss => deside later
-            None => {}
         }
-
-        // Cache miss
-        // TODO: proper error handling on await
-        let remote_response = request_caller.read_remote_headers(request).await?;
-
-        let remote_response_no_body = HTTPResponse {
-            version: remote_response.version(),
-            status: remote_response.status(),
-            reason: remote_response.reason().clone(),
-            url: remote_response.url().clone(),
-            headers: remote_response.headers().clone(),
-            body: vec![],
-        };
-
-        let cache_policy = middleware_caching_config
-            .cache_response(request, &remote_response_no_body)
-            .unwrap_or(CacheResponseExpiration::<CacheTime>::NoCache);
-
-        // REVIEW: don't read whole body if NoCache returned?
-
-        // TODO: proper error handling on await
-        // Copy already read data and append body.
-        let remote_response_with_body = HTTPResponse {
-            body: remote_response.body().await?,
-            version: remote_response_no_body.version,
-            url: remote_response_no_body.url,
-            status: remote_response_no_body.status,
-            reason: remote_response_no_body.reason,
-            headers: remote_response_no_body.headers,
-        };
-
-        let expiration_time = match cache_policy {
-            CacheResponseExpiration::NoCache => {
-                return Ok((Some(remote_response_with_body), CacheHitResult::CacheOff));
-            }
-            CacheResponseExpiration::CacheWithoutExpirationDate => None,
-            CacheResponseExpiration::CacheWithExpirationDate(expiration_date) => {
-                Some(expiration_date)
-            }
-        };
-        let call_timestamp = current_time_fn();
-        let new_cache_data = CacheData::<Headers, CacheTime> {
-            call_timestamp,
-            expiration_time,
-            http_request: HTTPRequest::new(request),
-            http_response: remote_response_with_body.clone(),
-        };
-
-        // TODO: proper error handling on await
-        cache_manager.put(&cache_key, &new_cache_data).await?;
-
-        let cache_hit_result = if matches!(cache_keep, Some(CacheKeepPolicy::Update)) {
-            CacheHitResult::CacheUpdate
-        } else {
-            CacheHitResult::CacheMiss
-        };
-
-        Ok((Some(remote_response_with_body), cache_hit_result))
+        Some(CacheKeepPolicy::Keep) => {
+            return Ok((
+                Some(cache_data_opt.unwrap().http_response),
+                CacheHitResult::CacheHit,
+            ))
+        }
+        Some(CacheKeepPolicy::Evict) => {
+            // TODO: proper error handling on await
+            cache_manager.delete(&cache_key).await?;
+            return Ok((None, CacheHitResult::CacheEvict));
+        }
+        // cache data needs to be updated
+        Some(CacheKeepPolicy::Update) => {}
+        // cache miss => deside later
+        None => {}
     }
+
+    // Cache miss
+    // TODO: proper error handling on await
+    let remote_response = request_caller.read_remote_headers(request).await?;
+
+    let remote_response_no_body = HTTPResponse {
+        version: remote_response.version(),
+        status: remote_response.status(),
+        reason: remote_response.reason().clone(),
+        url: remote_response.url().clone(),
+        headers: remote_response.headers().clone(),
+        body: vec![],
+    };
+
+    let cache_policy = middleware_caching_config
+        .cache_response(request, &remote_response_no_body)
+        .unwrap_or(CacheResponseExpiration::<CacheTime>::NoCache);
+
+    // REVIEW: don't read whole body if NoCache returned?
+
+    // TODO: proper error handling on await
+    // Copy already read data and append body.
+    let remote_response_with_body = HTTPResponse {
+        body: remote_response.body().await?,
+        version: remote_response_no_body.version,
+        url: remote_response_no_body.url,
+        status: remote_response_no_body.status,
+        reason: remote_response_no_body.reason,
+        headers: remote_response_no_body.headers,
+    };
+
+    let expiration_time = match cache_policy {
+        CacheResponseExpiration::NoCache => {
+            return Ok((Some(remote_response_with_body), CacheHitResult::CacheOff));
+        }
+        CacheResponseExpiration::CacheWithoutExpirationDate => None,
+        CacheResponseExpiration::CacheWithExpirationDate(expiration_date) => Some(expiration_date),
+    };
+    let call_timestamp = current_time_fn();
+    let new_cache_data = CacheData::<Headers, CacheTime> {
+        call_timestamp,
+        expiration_time,
+        http_request: HTTPRequest::new(request),
+        http_response: remote_response_with_body.clone(),
+    };
+
+    // TODO: proper error handling on await
+    cache_manager.put(&cache_key, &new_cache_data).await?;
+
+    let cache_hit_result = if matches!(cache_keep, Some(CacheKeepPolicy::Update)) {
+        CacheHitResult::CacheUpdate
+    } else {
+        CacheHitResult::CacheMiss
+    };
+
+    Ok((Some(remote_response_with_body), cache_hit_result))
 }
