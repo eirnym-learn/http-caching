@@ -2,7 +2,7 @@ use super::error::Result;
 use super::http::{HTTPRequest, HTTPResponse};
 
 /// Data to be stored in cache.
-pub struct CacheData<CacheTime, Headers>
+pub struct CacheData<Headers, CacheTime>
 where
     Headers: Clone + Send + Sync,
     CacheTime: Send + Sync,
@@ -23,13 +23,13 @@ where
 
 /// A trait providing methods for storing, reading, and removing cache records.
 pub trait CacheManager: Send + Sync {
-    type CacheTime: Send + Sync;
     type Headers: Clone + Send + Sync;
+    type CacheTime: Send + Sync;
     /// Attempt to pull a cached response.
     fn get(
         &self,
         cache_key: &str,
-    ) -> impl std::future::Future<Output = Result<Option<CacheData<Self::CacheTime, Self::Headers>>>>
+    ) -> impl std::future::Future<Output = Result<Option<CacheData<Self::Headers, Self::CacheTime>>>>
            + Send
            + Sync;
 
@@ -37,14 +37,14 @@ pub trait CacheManager: Send + Sync {
     fn put(
         &self,
         cache_key: &str,
-        data: &CacheData<Self::CacheTime, Self::Headers>,
+        data: &CacheData<Self::Headers, Self::CacheTime>,
     ) -> impl std::future::Future<Output = Result<()>> + Send + Sync;
 
     /// Attempt to remove a record from cache.
     fn delete(
         &self,
         cache_key: &str,
-    ) -> impl std::future::Future<Output = Result<Option<CacheData<Self::CacheTime, Self::Headers>>>>
+    ) -> impl std::future::Future<Output = Result<Option<CacheData<Self::Headers, Self::CacheTime>>>>
            + Send
            + Sync;
 }
