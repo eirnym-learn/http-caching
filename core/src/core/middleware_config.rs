@@ -28,7 +28,7 @@ pub enum CacheKeepPolicy {
 }
 
 /// Expiration dates for cache
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum CacheResponseExpiration<CacheTime> {
     /// Don't cache response
     NoCache,
@@ -80,5 +80,5 @@ pub trait RequestCaller: Send + Sync {
     fn read_remote_headers(
         &self,
         request: &HTTPRequest<Self::Headers>,
-    ) -> impl std::future::Future<Output = Result<Self::Response>> + Send + Sync;
+    ) -> impl core::future::Future<Output = Result<Self::Response>> + Send + Sync;
 }

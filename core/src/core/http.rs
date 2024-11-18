@@ -1,6 +1,6 @@
+use core::future::Future;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use std::future::Future;
 use url::Url;
 
 use crate::core::Result;
@@ -15,7 +15,7 @@ pub trait HttpRequest: Send {
     /// HTTP request headers
     fn headers(&self) -> &Self::Headers;
     /// HTTP request body
-    fn body(&self) -> Vec<u8>;
+    fn body(&self) -> &Vec<u8>;
 }
 
 /// Http Response data with optional body
@@ -37,7 +37,14 @@ pub trait HttpResponse: Send + Sync {
 
     /// Easy way to obtain HTTP response status category
     fn status_category(&self) -> HttpResponseStatus {
-        common_status_category(self.status())
+        match self.status() {
+            100..200 => HttpResponseStatus::Status1xx,
+            200..300 => HttpResponseStatus::Status2xx,
+            300..400 => HttpResponseStatus::Status3xx,
+            400..500 => HttpResponseStatus::Status4xx,
+            500..600 => HttpResponseStatus::Status5xx,
+            _ => HttpResponseStatus::StatusUnknown,
+        }
     }
 }
 
@@ -151,9 +158,10 @@ pub enum HttpVersion {
 
 impl<Headers: Clone + Send + Sync> HTTPRequest<Headers> {
     /// Easy constructor to create from arbitraty implementation
-    pub fn new(value: &impl HttpRequest<Headers = Headers>) -> Self {
-        HTTPRequest {
-            method: value.method().clone(),
+    #[inline]
+    pub fn new<Request: HttpRequest<Headers = Headers>>(value: &Request) -> Self {
+        Self {
+            method: value.method(),
             url: value.url().clone(),
             headers: value.headers().clone(),
             body: value.body().clone(),
@@ -176,15 +184,8 @@ impl<Headers: Clone + Send + Sync> HttpRequest for HTTPRequest<Headers> {
         &self.headers
     }
 
-    fn body(&self) -> Vec<u8> {
-        self.body.clone()
-    }
-}
-
-impl<Headers: Clone + Send + Sync> HTTPResponse<Headers> {
-    /// Easy way to obtain HTTP response status category
-    pub fn status_category(&self) -> HttpResponseStatus {
-        common_status_category(self.status())
+    fn body(&self) -> &Vec<u8> {
+        &self.body
     }
 }
 
@@ -212,16 +213,5 @@ impl<Headers: Clone + Send + Sync> HttpResponse for HTTPResponse<Headers> {
 
     async fn body(&self) -> Result<Vec<u8>> {
         Ok(self.body.clone())
-    }
-}
-
-fn common_status_category(status: u16) -> HttpResponseStatus {
-    match status {
-        100..200 => HttpResponseStatus::Status1xx,
-        200..300 => HttpResponseStatus::Status2xx,
-        300..400 => HttpResponseStatus::Status3xx,
-        400..500 => HttpResponseStatus::Status4xx,
-        500..600 => HttpResponseStatus::Status5xx,
-        _ => HttpResponseStatus::StatusUnknown,
     }
 }

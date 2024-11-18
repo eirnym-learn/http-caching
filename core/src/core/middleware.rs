@@ -3,8 +3,8 @@ use std::sync::Arc;
 use super::cache::{CacheData, CacheManager};
 use super::error::Result;
 use super::http::{HTTPRequest, HTTPResponse, HttpResponse};
-use super::middleware_config;
 use super::middleware_config::{CacheKeepPolicy, CacheResponseExpiration};
+use super::{middleware_config, Error};
 
 /// Return current timestamp to be written to cache.
 pub type CurrentTimeFn<CacheTime> = Arc<dyn Fn() -> CacheTime + Send + Sync>;
@@ -24,18 +24,18 @@ pub enum CacheHitResult {
 }
 
 pub async fn handle_response_caching<
-    'a,
+    'src,
     Headers,
     CacheTime,
     MiddlewareCacheManager,
     MiddlewareCachingConfig,
     RequestCaller,
 >(
-    request: &'a HTTPRequest<Headers>,
-    request_caller: &'a RequestCaller,
-    cache_manager: &'a MiddlewareCacheManager,
-    middleware_caching_config: &'a MiddlewareCachingConfig,
-    current_time_fn: &'a CurrentTimeFn<CacheTime>,
+    request: &'src HTTPRequest<Headers>,
+    request_caller: &'src RequestCaller,
+    cache_manager: &'src MiddlewareCacheManager,
+    middleware_caching_config: &'src MiddlewareCachingConfig,
+    current_time_fn: &'src CurrentTimeFn<CacheTime>,
 ) -> Result<(Option<HTTPResponse<Headers>>, CacheHitResult)>
 where
     CacheTime: Send + Sync,
@@ -68,20 +68,18 @@ where
             return Ok((None, CacheHitResult::CacheOff));
         }
         Some(CacheKeepPolicy::Keep) => {
-            return Ok((
-                Some(cache_data_opt.unwrap().http_response),
-                CacheHitResult::CacheHit,
-            ))
+            let Some(cached_data) = cache_data_opt else {
+                return Err(Error::FIXME);
+            };
+            return Ok((Some(cached_data.http_response), CacheHitResult::CacheHit));
         }
         Some(CacheKeepPolicy::Evict) => {
             // TODO: proper error handling on await
             cache_manager.delete(&cache_key).await?;
             return Ok((None, CacheHitResult::CacheEvict));
         }
-        // cache data needs to be updated
-        Some(CacheKeepPolicy::Update) => {}
-        // cache miss => deside later
-        None => {}
+        // cache data needs to be updated or there's a cache miss => process later
+        Some(CacheKeepPolicy::Update) | None => {}
     }
 
     // Cache miss
@@ -91,8 +89,8 @@ where
     let remote_response_no_body = HTTPResponse {
         version: remote_response.version(),
         status: remote_response.status(),
-        reason: remote_response.reason().clone(),
-        url: remote_response.url().clone(),
+        reason: remote_response.reason(),
+        url: remote_response.url(),
         headers: remote_response.headers().clone(),
         body: vec![],
     };

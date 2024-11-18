@@ -77,10 +77,12 @@ where
     type Headers = Headers;
     type CacheTime = CacheTime;
 
+    #[inline]
     fn key(&self, request: &HTTPRequest<Headers>) -> CacheRequestKey {
         (self.key_fn)(request, &self.additional_parameters)
     }
 
+    #[inline]
     fn cache_keep(
         &self,
         request: &HTTPRequest<Headers>,
@@ -97,6 +99,7 @@ where
         )
     }
 
+    #[inline]
     fn cache_response(
         &self,
         request: &HTTPRequest<Headers>,
