@@ -29,7 +29,7 @@ pub trait CacheManager: Send + Sync {
     fn get(
         &self,
         cache_key: &str,
-    ) -> impl std::future::Future<Output = Result<Option<CacheData<Self::Headers, Self::CacheTime>>>>
+    ) -> impl core::future::Future<Output = Result<Option<CacheData<Self::Headers, Self::CacheTime>>>>
            + Send
            + Sync;
 
@@ -38,13 +38,13 @@ pub trait CacheManager: Send + Sync {
         &self,
         cache_key: &str,
         data: &CacheData<Self::Headers, Self::CacheTime>,
-    ) -> impl std::future::Future<Output = Result<()>> + Send + Sync;
+    ) -> impl core::future::Future<Output = Result<()>> + Send + Sync;
 
     /// Attempt to remove a record from cache.
     fn delete(
         &self,
         cache_key: &str,
-    ) -> impl std::future::Future<Output = Result<Option<CacheData<Self::Headers, Self::CacheTime>>>>
+    ) -> impl core::future::Future<Output = Result<Option<CacheData<Self::Headers, Self::CacheTime>>>>
            + Send
            + Sync;
 }
